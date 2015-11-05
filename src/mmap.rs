@@ -4,6 +4,7 @@ use libc;
 
 // =====================================
 
+// A file descriptor, open for reading.
 struct FileDescriptor(libc::c_int);
 
 impl Drop for FileDescriptor {
@@ -19,13 +20,13 @@ impl FileDescriptor {
     unsafe fn open(filename: &str) -> Result<FileDescriptor,String> {
         if let Ok(file) = std::ffi::CString::new(filename) {
             let fd = libc::open(file.as_ptr(), libc::O_RDONLY, 0);
-            if fd < 0 {
-                return Err( format!("failure in open({}): {}", filename, std::io::Error::last_os_error()) );
+            if fd >= 0 {
+                Ok( FileDescriptor(fd) )
             } else {
-                return Ok( FileDescriptor(fd) );
+                Err( format!("failure in open({}): {}", filename, std::io::Error::last_os_error()) )
             }
         } else {
-            return Err( format!("cannot convert filename to CString: {}", filename) );
+            Err( format!("cannot convert filename to CString: {}", filename) )
         }
     }
 }
@@ -55,27 +56,7 @@ fn test_open_failure() {
 impl FileDescriptor {
     unsafe fn get_size(&self) -> Result<libc::size_t,String> {
         let FileDescriptor(fd) = *self;
-        // I mean, really, WTF?
-        let mut stat = libc::stat {
-            st_dev:        0,
-            st_ino:        0,
-            st_nlink:      0,
-            st_mode:       0,
-            st_uid:        0,
-            st_gid:        0,
-            __pad0:        0,
-            st_rdev:       0,
-            st_size:       0,
-            st_blksize:    0,
-            st_blocks:     0,
-            st_atime:      0,
-            st_atime_nsec: 0,
-            st_mtime:      0,
-            st_mtime_nsec: 0,
-            st_ctime:      0,
-            st_ctime_nsec: 0,
-            __unused:      [0; 3],
-        };
+        let mut stat: libc::stat = std::mem::zeroed();
         if libc::fstat(fd, &mut stat) < 0 {
             Err( format!("failure in fstat(): {}", std::io::Error::last_os_error()) )
         } else {
@@ -91,12 +72,17 @@ impl FileDescriptor {
 
 #[test]
 fn test_get_size() {
+    use std::os::unix::fs::MetadataExt;
     unsafe {
-        let res = FileDescriptor::open("Cargo.toml")
-            .and_then(|fd| { fd.get_size() })
-            .and_then(|sz| { if sz == 134 { Ok(true) } else { Err(format!("{} != 134", sz)) }});
-        if res.is_err() {
-            panic!(res.unwrap_err());
+        if let Ok(m) = std::fs::metadata("Cargo.toml") {
+            let res = FileDescriptor::open("Cargo.toml")
+                .and_then(|fd| { fd.get_size() })
+                .and_then(|sz| { if sz == m.size() as u64 { Ok(true) } else { Err(format!("{} != 149", sz)) }});
+            if res.is_err() {
+                panic!(res.unwrap_err());
+            }
+        } else {
+            panic!("cannot get metadata for Cargo.toml");
         }
     }
 }
@@ -104,7 +90,7 @@ fn test_get_size() {
 // =====================================
 
 pub struct MappedRegion {
-    _fd: FileDescriptor,
+    _fd: FileDescriptor,        // unused after construction; needed to keep fd open
     ptr: *mut u8,
     sz: libc::size_t,
 }
@@ -118,6 +104,8 @@ impl Drop for MappedRegion {
         }
     }
 }
+
+// -------------------------------------
 
 impl MappedRegion {
     
@@ -138,10 +126,12 @@ impl MappedRegion {
         }
     }
 
-    pub fn get_str(&self) -> Result<&str,std::str::Utf8Error> {
-        std::str::from_utf8(self.get_slice())
+    pub fn get_str<'s>(&'s self) -> Result<&'s str,String> {
+        std::str::from_utf8(self.get_slice()).map_err(|e| { format!("{}", e) })
     }
 }
+
+// -------------------------------------
 
 unsafe fn map(fd: FileDescriptor) -> Result<MappedRegion,String> {
     match fd.get_size() {
@@ -163,16 +153,21 @@ unsafe fn map(fd: FileDescriptor) -> Result<MappedRegion,String> {
 
 #[test]
 fn test_mmap() {
-    match MappedRegion::mmap("Cargo.toml") {
-        Ok(mr) => {
-            assert_eq!(mr.get_slice().len(), 134);
-            match mr.get_str() {
-                Ok(s) => {
-                    assert_eq!(s.lines_any().nth(0).unwrap(), "[package]");
+    use std::os::unix::fs::MetadataExt;
+    if let Ok(m) = std::fs::metadata("Cargo.toml") {
+        match MappedRegion::mmap("Cargo.toml") {
+            Ok(mr) => {
+                assert_eq!(mr.get_slice().len(), m.size() as usize);
+                match mr.get_str() {
+                    Ok(s) => {
+                        assert_eq!(s.lines().nth(0).unwrap(), "[package]");
+                    }
+                    Err(e) => { panic!(e); }
                 }
-                Err(e) => { panic!(e); }
             }
+            Err(e) => { panic!(e); }
         }
-        Err(e) => { panic!(e); }
+    } else {
+        panic!("cannot get metadata for Cargo.toml");
     }
 }
