@@ -1,7 +1,8 @@
 [package]
-name = "nl-foundations"
+name = "nl_foundations"
 version = "0.1.0"
 authors = ["Tommy M. McGuire <mcguire@crsr.net>"]
 
 [dependencies]
 libc = "0.1.10"
+getopts = "0.2"
