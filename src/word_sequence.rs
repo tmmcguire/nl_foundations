@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::hash::Hash;
+
+use case_string::CaseStr;
 
 #[derive(PartialEq,Eq,Debug)]
 enum CharClass {
@@ -27,18 +30,27 @@ fn test_char_class() {
 
 // ---------------------------
 
-pub type FMap<'w> = HashMap<usize, &'w str>;
-pub type BMap<'w> = HashMap<&'w str, usize>;
+pub type FMap<T> = HashMap<usize, T>;
+pub type BMap<T> = HashMap<T, usize>;
 
-pub struct WordSequence<'w> {
-    pub fmap: FMap<'w>,
-    pub bmap: BMap<'w>,
+pub struct WordSequence<T> {
+    pub fmap: FMap<T>,
+    pub bmap: BMap<T>,
     pub words: Vec<usize>,
 }
 
-impl <'s> WordSequence<'s> {
-    pub fn new(text: &'s str) -> WordSequence<'s> {
-        initialize_word_sequence(text)
+pub fn with_case<'s>(s: &'s str) -> &'s str { s }
+pub fn without_case<'s>(s: &'s str) -> CaseStr<'s> { CaseStr::from(s) }
+
+impl<'s> WordSequence<&'s str> {
+    pub fn new(text: &'s str) -> WordSequence<&'s str> {
+        initialize_word_sequence(text, with_case)
+    }
+}
+
+impl<'s> WordSequence<CaseStr<'s>> {
+    pub fn new_case(text: &'s str) -> WordSequence<CaseStr<'s>> {
+        initialize_word_sequence(text, without_case)
     }
 }
 
@@ -50,7 +62,9 @@ impl <'s> WordSequence<'s> {
 //           0   456789012
 //
 // [0,4), [5,7), [9,8), [10,14), [14,15)...
-fn initialize_word_sequence<'s>(text: &'s str) -> WordSequence<'s> {
+fn initialize_word_sequence<'s,T,F>(text: &'s str, trans: F) -> WordSequence<T>
+    where T:Hash + Eq + Clone, F: Fn(&'s str)-> T
+{
     let mut forward = HashMap::new();
     let mut words = Vec::new();
     let mut backward = HashMap::new();
@@ -62,14 +76,14 @@ fn initialize_word_sequence<'s>(text: &'s str) -> WordSequence<'s> {
             last_cls = char_class(ch);
         } else if last_cls != char_class(ch) {
             if last_cls != CharClass::Whitespace {
-                updates(&text[word_start..i], &mut words, &mut forward, &mut backward);
+                updates(trans(&text[word_start..i]), &mut words, &mut forward, &mut backward);
             }
             word_start = i;
             last_cls = char_class(ch);
         }
     }
     if last_cls != CharClass::Whitespace {
-        updates(&text[word_start..], &mut words, &mut forward, &mut backward);
+        updates(trans(&text[word_start..]), &mut words, &mut forward, &mut backward);
     }
     WordSequence {
         fmap: forward,
@@ -78,11 +92,13 @@ fn initialize_word_sequence<'s>(text: &'s str) -> WordSequence<'s> {
     }
 }
 
-fn updates<'s>(word: &'s str, words: &mut Vec<usize>,
-               forward: &mut FMap<'s>, backward: &mut BMap<'s>) {
-    let v = backward.entry(word).or_insert_with(|| {
+fn updates<T: Hash + Eq + Clone>(word: T,
+                                 words: &mut Vec<usize>,
+                                 forward: &mut FMap<T>,
+                                 backward: &mut BMap<T>) {
+    let v = backward.entry(word.clone()).or_insert_with(|| {
         let n = forward.len();
-        forward.insert(n, word);
+        forward.insert(n, word.clone());
         n
     });
     words.push(*v);
@@ -90,7 +106,7 @@ fn updates<'s>(word: &'s str, words: &mut Vec<usize>,
 
 #[test]
 fn test_initialize_word_sequence() {
-    let ws = initialize_word_sequence("abc 123 ");
+    let ws = initialize_word_sequence("abc 123 ", with_case);
     assert_eq!(ws.fmap.get(&0), Some(&"abc"));
     assert_eq!(ws.fmap.get(&1), Some(&"123"));
     assert_eq!(ws.fmap.get(&2), None);
@@ -99,7 +115,7 @@ fn test_initialize_word_sequence() {
 
 #[test]
 fn test_initialize_word_sequence_2() {
-    let ws = initialize_word_sequence("this is a test; 1, 2, three");
+    let ws = initialize_word_sequence("this is a test; 1, 2, three", with_case);
     assert_eq!(ws.fmap.get(&0), Some(&"this"));
     assert_eq!(ws.fmap.get(&1), Some(&"is"));
     assert_eq!(ws.fmap.get(&2), Some(&"a"));
@@ -110,4 +126,16 @@ fn test_initialize_word_sequence_2() {
     assert_eq!(ws.fmap.get(&7), Some(&"2"));
     assert_eq!(ws.fmap.get(&8), Some(&"three"));
     assert_eq!(ws.words,       vec!(0,1,2,3,4,5,6,7,6,8));
+}
+
+#[test]
+fn test_with_case() {
+    let ws = WordSequence::new("This is a test. Is only a test.");
+    assert_eq!(ws.words, vec!(0,1,2,3,4,5,6,2,3,4));
+}
+
+#[test]
+fn test_without_case() {
+    let ws = WordSequence::new_case("This is a test. Is only a test.");
+    assert_eq!(ws.words, vec!(0,1,2,3,4,1,5,2,3,4));
 }

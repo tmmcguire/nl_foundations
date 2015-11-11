@@ -1,20 +1,31 @@
 extern crate getopts;
 extern crate nl_foundations;
 
+use std::hash::Hash;
+
 use getopts::{Options,ParsingStyle};
 
 use nl_foundations::mmap::MappedRegion;
-use nl_foundations::word_sequence::{FMap,WordSequence};
+use nl_foundations::case_string::AsStr;
+use nl_foundations::word_sequence::{FMap,WordSequence,with_case,without_case};
 
-fn kwic(word: &str, window: usize, file: &str) -> Vec<(String,String,String)> {
+type Context = (String,String,String);
+type Contexts = Vec<Context>;
+
+fn kwic(word: &str, window: usize, file: &str, case: bool) -> Contexts {
     MappedRegion::mmap(file).and_then(|contents| {
-        contents.get_str().map(|text| kwic_segments(text, word, window) )
+        contents.get_str().map(|text| {
+            if case {
+                segments(&WordSequence::new(text), with_case(word), window)
+            } else {
+                segments(&WordSequence::new_case(text), without_case(word), window)
+            }
+        })
     }).expect(&format!("cannot read {}", file))
 }
 
-fn kwic_segments(text: &str, word: &str, window: usize) -> Vec<(String,String,String)> {
-    let ws = WordSequence::new(text);
-    match ws.bmap.get(word) {
+fn segments<T: Hash+Eq+AsStr>(ws: &WordSequence<T>, word: T, window: usize) -> Contexts {
+    match ws.bmap.get(&word) {
         Some(word) => {
             let lines = ws.words.iter()
                 .enumerate()
@@ -32,7 +43,7 @@ fn kwic_segments(text: &str, word: &str, window: usize) -> Vec<(String,String,St
 }
 
 // Find the KWIC segments (left, the word, and right) in the word sequence.
-fn get_segment(word: usize, window: usize, ws: &WordSequence) -> (String,String,String) {
+fn get_segment<T:AsStr>(word: usize, window: usize, ws: &WordSequence<T>) -> Context {
     let mut start = (word as isize) - (window as isize);
     start = if start < 0 { 0 } else { start };
     let mut end = word + window + 1;
@@ -43,7 +54,7 @@ fn get_segment(word: usize, window: usize, ws: &WordSequence) -> (String,String,
 }
 
 // Join the word ids, converted to their words and separated by spaces.
-fn join(seq: &[usize], dict: &FMap) -> String {
+fn join<T:AsStr>(seq: &[usize], dict: &FMap<T>) -> String {
     let mut words = Vec::new();
     for i in seq.iter() {
         words.push( get_word(*i, dict) );
@@ -52,8 +63,8 @@ fn join(seq: &[usize], dict: &FMap) -> String {
 }
 
 // Get a word out of the dictionary (or use a missing word marker).
-fn get_word<'s>(word: usize, dict: &FMap<'s>) -> &'s str {
-    *dict.get(&word).unwrap_or(&"--MISSING--")
+fn get_word<'s,T:AsStr>(word: usize, dict: &'s FMap<T>) -> &'s str {
+    dict.get(&word).map(|v| v.as_str()).unwrap_or("--MISSING--")
 }
 
 // Print a KWIC segment: left window (right justified), the word, and right window.
@@ -79,6 +90,7 @@ fn main() {
 
     let mut opts = Options::new();
     opts.parsing_style(ParsingStyle::StopAtFirstFree);
+    opts.optflag("c", "case", "use case-sensitive comparisons");
     opts.optflag("h", "help", "print detailed help");
     opts.optopt("w", "window", "context window width", "WIDTH");
     let matches = match opts.parse(&args[1..]) {
@@ -93,6 +105,7 @@ fn main() {
         print_usage(&program, &opts, false);
         return;
     }
+    let case = matches.opt_present("c");
     let width = match matches.opt_str("w") {
         Some(width) => {
             match width.parse::<usize>() {
@@ -110,6 +123,6 @@ fn main() {
     };
     let word: String = matches.free[0].clone();
     for file in &matches.free[1..] {
-        print_segments(&kwic(&word, width, file));
+        print_segments(&kwic(&word, width, file, case));
     }
 }
