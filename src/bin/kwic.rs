@@ -69,7 +69,7 @@ fn get_word<'s,T:AsStr>(word: usize, dict: &'s FMap<T>) -> &'s str {
 
 // Print a KWIC segment: left window (right justified), the word, and right window.
 fn print_segments(segments: &[(String,String,String)]) {
-    let lmax = segments.iter().map(|&(ref l,_,_)| l.len()).max().unwrap();
+    let lmax = segments.iter().map(|&(ref l,_,_)| l.len()).max().unwrap_or(0);
     for &(ref l, ref w, ref r) in segments.iter() {
         println!("{0:>1$}  {2}  {3}", l, lmax, w, r);
     }
