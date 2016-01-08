@@ -32,6 +32,12 @@ fn test_case_str_1() {
     assert!(!s.is_empty());
 }
 
+impl<'s> ToString for CaseStr<'s> {
+    fn to_string(&self) -> String {
+        self.0.to_lowercase()
+    }
+}
+
 impl<'s> PartialEq for CaseStr<'s> {
     fn eq(&self, other: &Self) -> bool {
         if self.len() == other.len() {
