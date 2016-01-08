@@ -44,14 +44,33 @@ pub fn without_case<'s>(s: &'s str) -> CaseStr<'s> { CaseStr::from(s) }
 
 impl<'s> WordSequence<&'s str> {
     pub fn new(text: &'s str) -> WordSequence<&'s str> {
-        initialize_word_sequence(text, with_case)
+        initialize_word_sequence(text, with_case, |_| true)
+    }
+
+    pub fn without_punctuation(text: &'s str) -> WordSequence<&'s str> {
+        initialize_word_sequence(text, with_case, |s| { s.chars().any(|c| c.is_alphabetic()) })
     }
 }
 
 impl<'s> WordSequence<CaseStr<'s>> {
     pub fn new_case(text: &'s str) -> WordSequence<CaseStr<'s>> {
-        initialize_word_sequence(text, without_case)
+        initialize_word_sequence(text, without_case, |_| true)
     }
+
+    pub fn without_punctuation(text: &'s str) -> WordSequence<CaseStr<'s>> {
+        initialize_word_sequence(text, without_case, |s| { s.chars().any(|c| c.is_alphabetic()) })
+    }
+}
+
+impl<T> WordSequence<T> {
+    pub fn forw(&self, word: usize) -> Option<&T> { self.fmap.get(&word) }
+    pub fn forw_default<'a>(&'a self, word: usize, d: &'a T) -> &T {
+        self.fmap.get(&word).unwrap_or(d)
+    }
+}
+
+impl<T: Hash + Eq> WordSequence<T> {
+    pub fn back(&self, s: &T) -> Option<usize> { self.bmap.get(s).cloned() }
 }
 
 // ---------------------------
@@ -61,9 +80,9 @@ impl<'s> WordSequence<CaseStr<'s>> {
 // 0   45 7891   111111222
 //           0   456789012
 //
-// [0,4), [5,7), [9,8), [10,14), [14,15)...
-fn initialize_word_sequence<'s,T,F>(text: &'s str, trans: F) -> WordSequence<T>
-    where T:Hash + Eq + Clone, F: Fn(&'s str)-> T
+// [0,4), [5,7), [8,9), [10,14), [14,15)...
+fn initialize_word_sequence<'s,T,F,P>(text: &'s str, trans: F, pred: P) -> WordSequence<T>
+    where T:Hash + Eq + Clone, F: Fn(&'s str)-> T, P: Fn(&'s str) -> bool
 {
     let mut forward = HashMap::new();
     let mut words = Vec::new();
@@ -75,14 +94,14 @@ fn initialize_word_sequence<'s,T,F>(text: &'s str, trans: F) -> WordSequence<T>
             word_start = i;
             last_cls = char_class(ch);
         } else if last_cls != char_class(ch) {
-            if last_cls != CharClass::Whitespace {
+            if last_cls != CharClass::Whitespace && pred(&text[word_start..i]) {
                 updates(trans(&text[word_start..i]), &mut words, &mut forward, &mut backward);
             }
             word_start = i;
             last_cls = char_class(ch);
         }
     }
-    if last_cls != CharClass::Whitespace {
+    if last_cls != CharClass::Whitespace && pred(&text[word_start..]) {
         updates(trans(&text[word_start..]), &mut words, &mut forward, &mut backward);
     }
     WordSequence {
