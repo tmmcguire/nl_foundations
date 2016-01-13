@@ -32,8 +32,8 @@ fn process_text<'a>(text: &'a str) {
         let c_obs = bigram_samples.counts.get(&pair).unwrap();
         let c_l = word_samples.counts.get(&pair.0).unwrap();
         let c_r = word_samples.counts.get(&pair.1).unwrap();
-        let first = ws.forw(pair.0).unwrap().to_string();
-        let second = ws.forw(pair.1).unwrap().to_string();
+        let first = ws[pair.0].to_string();
+        let second = ws[pair.1].to_string();
         println!("{:2.2}\t{:6}\t{:6}\t{:6}\t{} {}", t, c_l, c_r, c_obs, first, second);
     }
 }

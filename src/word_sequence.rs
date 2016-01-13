@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::ops::Index;
 
 use case_string::CaseStr;
 
 #[derive(PartialEq,Eq,Debug)]
-enum CharClass {
+pub enum CharClass {
     Alphabetic,
     Numeric,
     Whitespace,
@@ -36,6 +37,7 @@ pub type BMap<T> = HashMap<T, usize>;
 pub struct WordSequence<T> {
     pub fmap: FMap<T>,
     pub bmap: BMap<T>,
+    pub classes: HashMap<usize,CharClass>,
     pub words: Vec<usize>,
 }
 
@@ -67,10 +69,21 @@ impl<T> WordSequence<T> {
     pub fn forw_default<'a>(&'a self, word: usize, d: &'a T) -> &T {
         self.fmap.get(&word).unwrap_or(d)
     }
+    pub fn unknown_word(&self) -> usize { self.fmap.len() }
 }
 
 impl<T: Hash + Eq> WordSequence<T> {
     pub fn back(&self, s: &T) -> Option<usize> { self.bmap.get(s).cloned() }
+}
+
+impl<T> Index<usize> for WordSequence<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &T {
+        match self.forw(index) {
+            Some(v) => v,
+            None => panic!("unknown word index {}", index),
+        }
+    }
 }
 
 // ---------------------------
@@ -85,8 +98,9 @@ fn initialize_word_sequence<'s,T,F,P>(text: &'s str, trans: F, pred: P) -> WordS
     where T:Hash + Eq + Clone, F: Fn(&'s str)-> T, P: Fn(&'s str) -> bool
 {
     let mut forward = HashMap::new();
-    let mut words = Vec::new();
     let mut backward = HashMap::new();
+    let mut char_cls = HashMap::new();
+    let mut words = Vec::new();
     let mut word_start = 0;
     let mut last_cls = CharClass::Whitespace;
     for (i,ch) in text.char_indices() {
@@ -95,29 +109,43 @@ fn initialize_word_sequence<'s,T,F,P>(text: &'s str, trans: F, pred: P) -> WordS
             last_cls = char_class(ch);
         } else if last_cls != char_class(ch) {
             if last_cls != CharClass::Whitespace && pred(&text[word_start..i]) {
-                updates(trans(&text[word_start..i]), &mut words, &mut forward, &mut backward);
+                updates(trans(&text[word_start..i]),
+                        last_cls,
+                        &mut words,
+                        &mut forward,
+                        &mut backward,
+                        &mut char_cls);
             }
             word_start = i;
             last_cls = char_class(ch);
         }
     }
     if last_cls != CharClass::Whitespace && pred(&text[word_start..]) {
-        updates(trans(&text[word_start..]), &mut words, &mut forward, &mut backward);
+        updates(trans(&text[word_start..]),
+                last_cls,
+                &mut words,
+                &mut forward,
+                &mut backward,
+                &mut char_cls);
     }
     WordSequence {
         fmap: forward,
         bmap: backward,
+        classes: char_cls,
         words: words,
     }
 }
 
 fn updates<T: Hash + Eq + Clone>(word: T,
+                                 class: CharClass,
                                  words: &mut Vec<usize>,
                                  forward: &mut FMap<T>,
-                                 backward: &mut BMap<T>) {
+                                 backward: &mut BMap<T>,
+                                 classes: &mut HashMap<usize,CharClass>) {
     let v = backward.entry(word.clone()).or_insert_with(|| {
         let n = forward.len();
         forward.insert(n, word.clone());
+        classes.insert(n, class);
         n
     });
     words.push(*v);
