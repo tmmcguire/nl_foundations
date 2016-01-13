@@ -64,10 +64,7 @@ impl FileDescriptor {
         }
     }
 
-    fn get_fd(&self) -> libc::c_int {
-        let FileDescriptor(fd) = *self;
-        fd
-    }
+    unsafe fn get_fd(&self) -> &libc::c_int { &self.0 }
 }
 
 #[test]
@@ -108,14 +105,12 @@ impl Drop for MappedRegion {
 // -------------------------------------
 
 impl MappedRegion {
-    
+
     pub fn mmap(filename: &str) -> Result<MappedRegion,String> {
         unsafe {
             match FileDescriptor::open(filename) {
-                Ok(fd) => {
-                    map(fd)
-                }
-                Err(e) => { Err(e) }
+                Ok(fd) => map(fd),
+                Err(e) => Err(e)
             }
         }
     }
@@ -136,7 +131,7 @@ impl MappedRegion {
 unsafe fn map(fd: FileDescriptor) -> Result<MappedRegion,String> {
     match fd.get_size() {
         Ok(sz) => {
-            let address = libc::mmap(0 as *mut libc::c_void, sz as u64, libc::PROT_READ, libc::MAP_PRIVATE, fd.get_fd(), 0);
+            let address = libc::mmap(0 as *mut libc::c_void, sz as u64, libc::PROT_READ, libc::MAP_PRIVATE, *fd.get_fd(), 0);
             if address < 0 as *mut libc::c_void {
                 Err( format!("failure in mmap(): {}", std::io::Error::last_os_error()) )
             } else {
