@@ -16,13 +16,12 @@ macro_rules! delegate {
 }
 
 impl<'s> CaseStr<'s> {
-    pub fn from(s: &'s str) -> CaseStr<'s> {
-        CaseStr(s)
-    }
+    pub fn from(s: &'s str) -> CaseStr<'s> { CaseStr(s) }
 
     delegate!( len() -> usize,
-               is_empty() -> bool );
-    delegate!( split_at(mid:usize) -> (&str,&str) );
+               is_empty() -> bool,
+               as_bytes() -> &[u8],
+               split_at(mid:usize) -> (&str,&str) );
 }
 
 #[test]
@@ -30,6 +29,7 @@ fn test_case_str_1() {
     let s = CaseStr::from("abc");
     assert_eq!(s.len(), 3);
     assert!(!s.is_empty());
+    assert_eq!(s.split_at(1), ("a","bc"))
 }
 
 impl<'s> ToString for CaseStr<'s> {
@@ -70,7 +70,7 @@ impl<'s> PartialOrd for CaseStr<'s> {
         for (ch_l,ch_r) in it_l.zip( it_r ) {
             match ch_l.partial_cmp( &ch_r ) {
                 Some(Ordering::Equal) => { }
-                ord                             => { return ord; }
+                ord => { return ord; }
             }
         }
         return self.len().partial_cmp( &other.len() );
