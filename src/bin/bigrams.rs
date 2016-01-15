@@ -16,8 +16,11 @@ fn t_significant_bigrams(file: &str) {
         .expect(&format!("cannot read {}", file))
 }
 
+// Filter for words containing any alphabetic characters.
+fn any_alphabetic(s: &str) -> bool { s.chars().any(|c| c.is_alphabetic()) }
+
 fn process_text<'a>(text: &'a str) {
-    let ws: WordSequence<CaseStr<'a>> = WordSequence::without_punctuation(text);
+    let ws: WordSequence<CaseStr<'a>> = WordSequence::new(text, CaseStr::from, any_alphabetic);
     // Collect word samples and bigram samples.
     let word_samples: Sample<usize> = ws.words.iter().cloned().collect();
     let f = ws.words.iter().cloned();

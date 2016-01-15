@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::hash::{Hash,Hasher};
+use std::borrow::Borrow;
 
 #[derive(Debug,Clone)]
 pub struct CaseStr<'s>(&'s str);
@@ -152,6 +153,10 @@ fn test_hashmap() {
     assert_eq!(hm.get(&CaseStr::from("two")), Some(&2));
     assert_eq!(hm.get(&CaseStr::from("tWO")), Some(&2));
     assert_eq!(hm.get(&CaseStr::from("owO")), None);
+}
+
+impl<'s> Borrow<str> for CaseStr<'s> {
+    fn borrow(&self) -> &str { self.0 }
 }
 
 // ---------------------------
