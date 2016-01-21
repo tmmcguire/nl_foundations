@@ -51,12 +51,30 @@ impl<T: Hash + Eq + Clone> WordSequence<T> {
         initialize_word_sequence(text, to_t, is_word)
     }
 
+    pub fn insert_word(&mut self, word:T, class: CharClass) -> Word {
+        if self.to_word.get(&word).is_none() {
+            let w = self.from_word.len();
+            self.from_word.insert(w, word.clone());
+            self.to_word.insert(word.clone(), w);
+            self.class_of_word.insert(w, class);
+        }
+        self.to_word[&word]
+    }
+
     pub fn from_word(&self, word: &Word) -> Option<&T> { self.from_word.get(word) }
     pub fn from_word_default<'l>(&'l self, word: &Word, d: &'l T) -> &'l T {
         self.from_word.get(&word).unwrap_or(d)
     }
 
-    pub fn to_word(&self, t: &T) -> Option<&usize> { self.to_word.get(t) }
+    pub fn to_word(&self, t: &T) -> Option<Word> { self.to_word.get(t).cloned() }
+    pub fn to_word_default(&self, t: &T) -> Word {
+        match self.to_word(t) {
+            Some(w) => w,
+            None => self.from_word.len(),
+        }
+    }
+
+    pub fn len(&self) -> usize { self.words.len() }
 }
 
 impl<T: Hash + Eq + Clone> Index<Word> for WordSequence<T> {
@@ -91,7 +109,7 @@ fn initialize_word_sequence<'l,T,F,P>(text: &'l str, trans: F, pred: P) -> WordS
         if i == 0 {
             word_start = i;
             last_cls = CharClass::classify(ch);
-        } else if last_cls != CharClass::classify(ch) {
+        } else if last_cls != CharClass::classify(ch) || ch == '"' {
             if last_cls != CharClass::Whitespace && pred(&text[word_start..i]) {
                 updates(trans(&text[word_start..i]),
                         last_cls,
