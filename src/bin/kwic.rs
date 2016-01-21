@@ -31,7 +31,7 @@ fn segments<T>(ws: &WordSequence<T>, word: T, window: usize) -> Contexts
         Some(word) => {
             let lines = ws.words.iter()
                 .enumerate()
-                .filter_map(|(i,n)| {
+                .filter_map(|(i,&n)| {
                     if n == word {
                         Some(get_segment(i, window, &ws))
                     } else {

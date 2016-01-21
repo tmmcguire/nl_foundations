@@ -3,26 +3,18 @@ use std::hash::{Hash,Hasher};
 use std::borrow::Borrow;
 
 #[derive(Debug,Clone)]
-pub struct CaseStr<'s>(&'s str);
-
-macro_rules! delegate {
-    // 0 additional arguments
-    ( $( $f:ident ( ) -> $r:ty ),* ) => {
-        $( pub fn $f(&self) -> $r { (self.0).$f() } )*
-    };
-    // 1+ additional arguments
-    ( $( $f:ident ( $( $a:ident : $at:ty ),* ) -> $r:ty ),* ) => {
-        $( pub fn $f (&self, $( $a: $at),* ) -> $r { (self.0).$f( $( $a ),* ) } )*
-    };
-}
+pub struct CaseStr<'s>{ s: &'s str}
 
 impl<'s> CaseStr<'s> {
-    pub fn from(s: &'s str) -> CaseStr<'s> { CaseStr(s) }
+    pub fn from(s: &'s str) -> CaseStr<'s> { CaseStr{ s: s } }
 
-    delegate!( len() -> usize,
-               is_empty() -> bool,
-               as_bytes() -> &[u8],
-               split_at(mid:usize) -> (&str,&str) );
+    delegate!{
+        s:
+        pub len() -> usize,
+        pub is_empty() -> bool,
+        pub as_bytes() -> &[u8],
+        pub split_at(mid:usize) -> (&str,&str)
+    }
 }
 
 #[test]
@@ -35,15 +27,15 @@ fn test_case_str_1() {
 
 impl<'s> ToString for CaseStr<'s> {
     fn to_string(&self) -> String {
-        self.0.to_lowercase()
+        self.s.to_lowercase()
     }
 }
 
 impl<'s> PartialEq for CaseStr<'s> {
     fn eq(&self, other: &Self) -> bool {
         if self.len() == other.len() {
-            let it_l = self.0.chars().flat_map(|c| c.to_lowercase());
-            let it_r = other.0.chars().flat_map(|c| c.to_lowercase());
+            let it_l = self.s.chars().flat_map(|c| c.to_lowercase());
+            let it_r = other.s.chars().flat_map(|c| c.to_lowercase());
             for (ch_l,ch_r) in it_l.zip( it_r ) {
                 if ch_l != ch_r { return false; }
             }
@@ -66,8 +58,8 @@ fn test_case_str_eq() {
 
 impl<'s> PartialOrd for CaseStr<'s> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let it_l = self.0.chars().flat_map(|c| c.to_lowercase());
-        let it_r = other.0.chars().flat_map(|c| c.to_lowercase());
+        let it_l = self.s.chars().flat_map(|c| c.to_lowercase());
+        let it_r = other.s.chars().flat_map(|c| c.to_lowercase());
         for (ch_l,ch_r) in it_l.zip( it_r ) {
             match ch_l.partial_cmp( &ch_r ) {
                 Some(Ordering::Equal) => { }
@@ -119,7 +111,7 @@ fn test_case_str_ord() {
 
 impl<'s> Hash for CaseStr<'s> {
     fn hash<H:Hasher>(&self, state: &mut H) {
-        for ch in self.0.chars().flat_map(|c| c.to_lowercase()) {
+        for ch in self.s.chars().flat_map(|c| c.to_lowercase()) {
             ch.hash(state);
         }
     }
@@ -156,7 +148,7 @@ fn test_hashmap() {
 }
 
 impl<'s> Borrow<str> for CaseStr<'s> {
-    fn borrow(&self) -> &str { self.0 }
+    fn borrow(&self) -> &str { self.s }
 }
 
 // ---------------------------
@@ -174,5 +166,5 @@ impl<'s> AsStr for &'s str {
 }
 
 impl<'s> AsStr for CaseStr<'s> {
-    fn as_str<'t>(&'t self) -> &'t str { self.0 }
+    fn as_str<'t>(&'t self) -> &'t str { self.s }
 }
