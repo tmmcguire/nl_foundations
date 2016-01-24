@@ -155,7 +155,7 @@ fn test_mmap() {
                 assert_eq!(mr.get_slice().len(), m.size() as usize);
                 match mr.get_str() {
                     Ok(s) => {
-                        assert_eq!(s.lines().nth(0).unwrap(), "[package]");
+                        assert_eq!( unwrap!( s.lines().nth(0) ), "[package]");
                     }
                     Err(e) => { panic!(e); }
                 }

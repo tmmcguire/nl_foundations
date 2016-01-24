@@ -1,3 +1,12 @@
+#[macro_export]
+macro_rules! unwrap {
+    ($e:expr) => {
+        match $e {
+            Some(v) => v,
+            None => panic!(concat!(stringify!($e), ": unwrap! produced None"))
+        }
+    }
+}
 
 #[macro_export]
 macro_rules! delegate {

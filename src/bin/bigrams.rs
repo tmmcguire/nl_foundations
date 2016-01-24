@@ -1,5 +1,5 @@
 extern crate getopts;
-extern crate nl_foundations;
+#[macro_use] extern crate nl_foundations;
 
 use std::cmp::Ordering;
 
@@ -32,9 +32,9 @@ fn process_text<'a>(text: &'a str) {
     scored.sort_by(|l,r| l.partial_cmp(r).unwrap_or(Ordering::Equal).reverse());
     // Print each bigram in order, along with statistical information.
     for (t,pair) in scored {
-        let c_obs = bigram_samples.counts.get(&pair).unwrap();
-        let c_l = word_samples.counts.get(&pair.0).unwrap();
-        let c_r = word_samples.counts.get(&pair.1).unwrap();
+        let c_obs = unwrap!( bigram_samples.counts.get(&pair) );
+        let c_l = unwrap!( word_samples.counts.get(&pair.0) );
+        let c_r = unwrap!( word_samples.counts.get(&pair.1) );
         let first = ws[pair.0].to_string();
         let second = ws[pair.1].to_string();
         println!("{:2.2}\t{:6}\t{:6}\t{:6}\t{} {}", t, c_l, c_r, c_obs, first, second);
