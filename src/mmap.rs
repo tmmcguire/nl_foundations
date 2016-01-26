@@ -74,7 +74,7 @@ fn test_get_size() {
         if let Ok(m) = std::fs::metadata("Cargo.toml") {
             let res = FileDescriptor::open("Cargo.toml")
                 .and_then(|fd| { fd.get_size() })
-                .and_then(|sz| { if sz == m.size() as u64 { Ok(true) } else { Err(format!("{} != 149", sz)) }});
+                .and_then(|sz| { if sz == m.size() as usize { Ok(true) } else { Err(format!("{} != 149", sz)) }});
             if res.is_err() {
                 panic!(res.unwrap_err());
             }
@@ -131,7 +131,7 @@ impl MappedRegion {
 unsafe fn map(fd: FileDescriptor) -> Result<MappedRegion,String> {
     match fd.get_size() {
         Ok(sz) => {
-            let address = libc::mmap(0 as *mut libc::c_void, sz as u64, libc::PROT_READ, libc::MAP_PRIVATE, *fd.get_fd(), 0);
+            let address = libc::mmap(0 as *mut libc::c_void, sz, libc::PROT_READ, libc::MAP_PRIVATE, *fd.get_fd(), 0);
             if address < 0 as *mut libc::c_void {
                 Err( format!("failure in mmap(): {}", std::io::Error::last_os_error()) )
             } else {
